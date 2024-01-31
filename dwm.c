@@ -2078,7 +2078,7 @@ get_time(char *out) {
     time(&rawtime);
     timeinfo = localtime(&rawtime);
 
-    sprintf(out, "%d/%02d/%02d %d:%d", timeinfo->tm_year + 1900,
+    sprintf(out, "%d/%02d/%02d %d:%02d", timeinfo->tm_year + 1900,
             timeinfo->tm_mon + 1, timeinfo->tm_mday,
             timeinfo->tm_hour, timeinfo->tm_min);
 }
@@ -2094,7 +2094,7 @@ updatestatus(void)
 
 	get_time(time_buf);
 
-	sprintf(stext, "%s CPU %02d%% CPU temp: %03dC", time_buf, (int)get_cpu_percent_usage(), (int)get_cpu_temperature());
+	sprintf(stext, "%s CPU %2d%% CPU temp: %3dC", time_buf, (int)get_cpu_percent_usage(), (int)get_cpu_temperature());
 	drawbar(selmon);
 
 	pthread_mutex_unlock(&status_mtx);
