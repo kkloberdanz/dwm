@@ -21,6 +21,7 @@
  * To understand everything else, start reading main().
  */
 #include <errno.h>
+#include <pthread.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -1409,9 +1410,11 @@ run(void)
 	XEvent ev;
 	/* main event loop */
 	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
+	while (running && !XNextEvent(dpy, &ev)) {
+		// updatestatus();
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
+	}
 }
 
 void
@@ -2042,12 +2045,68 @@ done:
 	return temp;
 }
 
+static double
+get_cpu_percent_usage(void) {
+    double a[4], b[4], loadavg;
+    FILE *fp;
+
+    fp = fopen("/proc/stat","r");
+    if (!fp) {
+	    return -1.0;
+    }
+    fscanf(fp,"%*s %lf %lf %lf %lf",&a[0],&a[1],&a[2],&a[3]);
+    fclose(fp);
+    sleep(1);
+
+    fp = fopen("/proc/stat","r");
+    if (!fp) {
+	    return -1.0;
+    }
+    fscanf(fp,"%*s %lf %lf %lf %lf",&b[0],&b[1],&b[2],&b[3]);
+    fclose(fp);
+
+    loadavg = ((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]));
+    /* printf("The current CPU utilization is : %.2lf%%\n",loadavg * 100.0); */
+    return loadavg * 100.0;
+}
+
+void
+get_time(char *out) {
+    time_t rawtime;
+    struct tm * timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    sprintf(out, "%d/%02d/%02d %d:%d", timeinfo->tm_year + 1900,
+            timeinfo->tm_mon + 1, timeinfo->tm_mday,
+            timeinfo->tm_hour, timeinfo->tm_min);
+}
+
+pthread_mutex_t status_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 void
 updatestatus(void)
 {
-	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		sprintf(stext, "CPU temp: %dC", (int)get_cpu_temperature());
+	char time_buf[100] = {0};
+	pthread_mutex_lock(&status_mtx);
+
+
+	get_time(time_buf);
+
+	sprintf(stext, "%s CPU %02d%% CPU temp: %03dC", time_buf, (int)get_cpu_percent_usage(), (int)get_cpu_temperature());
 	drawbar(selmon);
+
+	pthread_mutex_unlock(&status_mtx);
+}
+
+void *update_status_thread(void *data)
+{
+	for (;;) {
+		updatestatus();
+		sleep(1);
+	}
+	return NULL;
 }
 
 void
@@ -2198,7 +2257,10 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
+	pthread_t status_thread;
+	pthread_create(&status_thread, NULL, update_status_thread, NULL);
 	run();
+	pthread_cancel(status_thread);
 	cleanup();
 	XCloseDisplay(dpy);
 	return EXIT_SUCCESS;
