@@ -2026,11 +2026,27 @@ updatesizehints(Client *c)
 	c->hintsvalid = 1;
 }
 
+static double
+get_cpu_temperature(void) {
+	FILE *fp = NULL;
+	double temp = -1.0;
+
+	fp = fopen("/sys/class/thermal/thermal_zone1/temp", "r");
+	if (!fp)
+		goto done;
+	fscanf(fp, "%lf", &temp);
+	temp /= 1000.0;
+done:
+	if (fp)
+		fclose(fp);
+	return temp;
+}
+
 void
 updatestatus(void)
 {
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		strcpy(stext, "dwm-"VERSION);
+		sprintf(stext, "CPU temp: %dC", (int)get_cpu_temperature());
 	drawbar(selmon);
 }
 
